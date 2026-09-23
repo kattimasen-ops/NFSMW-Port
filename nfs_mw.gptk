@@ -1,0 +1,16 @@
+back = esc
+start = enter
+
+# Beschleunigen auf R1 / R2
+r1 = key_up
+# Bremsen auf L1 / L2
+l1 = key_down
+
+# Handbremse
+a = space
+# Nitroschub
+b = key_lshift
+
+# Lenkung Analogstick
+left_analog_left = key_left
+left_analog_right = key_right
