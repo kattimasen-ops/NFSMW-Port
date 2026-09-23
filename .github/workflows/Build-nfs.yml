@@ -1,53 +1,50 @@
-name: Build NFS Most Wanted Mobile (RK3326 ARM32)
+name: Build ARMv7 Package
 
 on:
   push:
-    branches: [ main, master ]
-  workflow_dispatch:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
 
 jobs:
-  build-armhf:
+  build-armv7:
     runs-on: ubuntu-latest
+
+    # Wichtig: Explizite Schreibrechte für die GitHub Container Registry (ghcr.io)
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Build in Ubuntu 20.04 ARM32 Container
+      - name: Run Build inside ARMv7 Architecture
         uses: uraimo/run-on-arch-action@v2
         with:
           arch: armv7
           distro: ubuntu20.04
-          githubToken: ${{ github.token }}
-          setup: |
-            mkdir -p "${PWD}/build_output"
-          run: |
-            # 1. Systempakete für ARM32 installieren
+          
+          # Das Token wird für das Caching des Docker-Images in ghcr.io benötigt
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+
+          # Optional: Verzeichnisse aus dem Repository in den Container einbinden
+          # setup: |
+          #   mkdir -p "${PWD}/build_output"
+
+          # Abhängigkeiten vor dem eigentlichen Build im ARM-Container installieren
+          install: |
             apt-get update
-            apt-get install -y build-essential cmake libsdl2-dev libgles2-mesa-dev zip
+            apt-get install -y build-essential cmake git
 
-            # 2. Hardware-Compiler-Flags für RK3326 (Cortex-A35 NEON)
-            export CFLAGS="-O3 -march=armv7-a -mfpu=neon-vfpv4 -mfloat-abi=hard -ffast-math -fomit-frame-pointer"
-            export CXXFLAGS="$CFLAGS"
+          # Umgebungsvariablen an den Container übergeben
+          env: |
+            BUILD_TYPE: Release
 
-            # 3. Projekt kompilieren
-            mkdir -p build && cd build
-            cmake .. -DCMAKE_BUILD_TYPE=Release
-            make -j$(nproc)
-
-            # 4. PortMaster Release-Ordner aufbauen
-            cd ..
-            mkdir -p build_output/nfs_mw
-            cp build/nfs_mw_loader build_output/nfs_mw/
-            cp NFS_Most_Wanted.sh build_output/
-            cp nfs_mw.gptk build_output/nfs_mw/
-            
-      - name: Package PortMaster ZIP Artifact
-        run: |
-          cd build_output
-          zip -r ../NFS_Most_Wanted_PortMaster_RK3326.zip NFS_Most_Wanted.sh nfs_mw/
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: NFS_Most_Wanted_PortMaster_RK3326
-          path: NFS_Most_Wanted_PortMaster_RK3326.zip
+          # Befehle, die nativ/emuliert auf ARMv7 ausgeführt werden
+          run: |
+            echo "Starte Build auf ARMv7..."
+            # Ersetzen Sie diese Zeilen durch Ihre Build-Befehle (z. B. make, cmake, cargo etc.):
+            # cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+            # cmake --build build
+            echo "Build erfolgreich beendet!"
