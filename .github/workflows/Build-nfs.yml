@@ -10,7 +10,6 @@ jobs:
   build-armv7:
     runs-on: ubuntu-latest
 
-    # Wichtig: Explizite Schreibrechte für die GitHub Container Registry (ghcr.io)
     permissions:
       contents: read
       packages: write
@@ -24,27 +23,33 @@ jobs:
         with:
           arch: armv7
           distro: ubuntu20.04
-          
-          # Das Token wird für das Caching des Docker-Images in ghcr.io benötigt
           githubToken: ${{ secrets.GITHUB_TOKEN }}
 
-          # Optional: Verzeichnisse aus dem Repository in den Container einbinden
-          # setup: |
-          #   mkdir -p "${PWD}/build_output"
+          # Erstellt den Ausgabeordner im gemounteten Arbeitsverzeichnis auf dem Runner
+          setup: |
+            mkdir -p "${PWD}/build_output"
 
-          # Abhängigkeiten vor dem eigentlichen Build im ARM-Container installieren
           install: |
             apt-get update
             apt-get install -y build-essential cmake git
 
-          # Umgebungsvariablen an den Container übergeben
-          env: |
-            BUILD_TYPE: Release
-
-          # Befehle, die nativ/emuliert auf ARMv7 ausgeführt werden
+          # Befehle im ARMv7-Container
           run: |
-            echo "Starte Build auf ARMv7..."
-            # Ersetzen Sie diese Zeilen durch Ihre Build-Befehle (z. B. make, cmake, cargo etc.):
-            # cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE
-            # cmake --build build
-            echo "Build erfolgreich beendet!"
+            echo "Starte Build..."
+            
+            # WICHTIG: Speichern Sie Ihre erzeugten Dateien in './build_output/'
+            # Beispiel für einen echten Build: gcc main.c -o build_output/my-app
+            echo "Dies ist eine kompilierte Test-Datei für ARMv7" > build_output/my-app.bin
+            
+            # Kontrollausgabe im Log
+            ls -la build_output/
+
+      - name: Build-Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: armv7-binary
+          # Pfad zum Ordner oder der Datei auf dem Runner-Host
+          path: build_output/
+          # Bricht den Workflow ab, falls die Datei nicht existiert (verhindert stummes Fehlschlagen)
+          if-no-files-found: error
+          retention-days: 7
