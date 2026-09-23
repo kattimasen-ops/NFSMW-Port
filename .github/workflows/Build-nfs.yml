@@ -25,31 +25,47 @@ jobs:
           distro: ubuntu20.04
           githubToken: ${{ secrets.GITHUB_TOKEN }}
 
-          # Erstellt den Ausgabeordner im gemounteten Arbeitsverzeichnis auf dem Runner
-          setup: |
-            mkdir -p "${PWD}/build_output"
-
+          # Installieren Sie hier die Pakete, die Ihr Projekt zum Bauen benötigt
           install: |
             apt-get update
             apt-get install -y build-essential cmake git
 
-          # Befehle im ARMv7-Container
+          # Befehle, die nativ im ARMv7-Container ausgeführt werden
           run: |
-            echo "Starte Build..."
-            
-            # WICHTIG: Speichern Sie Ihre erzeugten Dateien in './build_output/'
-            # Beispiel für einen echten Build: gcc main.c -o build_output/my-app
-            echo "Dies ist eine kompilierte Test-Datei für ARMv7" > build_output/my-app.bin
-            
-            # Kontrollausgabe im Log
-            ls -la build_output/
+            # -----------------------------------------------------------------
+            # 1. IHREN ECHTEN BUILD-BEFEHL HIER AUSFÜHREN:
+            # -----------------------------------------------------------------
+            # Beispiele (zutreffendes einkommentieren / anpassen):
+            #
+            # Bei Makefile:
+            # make
+            #
+            # Bei CMake:
+            # cmake -B build -DCMAKE_BUILD_TYPE=Release
+            # cmake --build build
+            #
+            # Bei direktem GCC-Aufruf:
+            # gcc -O2 src/*.c -o mein_programm
+            # -----------------------------------------------------------------
 
-      - name: Build-Artefakt hochladen
+            # 2. Ordner für das Artefakt erstellen
+            mkdir -p build_output
+
+            # 3. Alle erzeugten Dateien in das Artefakt-Verzeichnis kopieren:
+            # (Passen Sie die Quellpfade an den Ausgabeordner Ihres Projekts an)
+            cp -r build/* build_output/ 2>/dev/null || cp mein_programm build_output/ 2>/dev/null || true
+
+            # Optional: Konfigurationsdateien oder Skripte mitpacken
+            # cp -r assets config.json build_output/ 2>/dev/null || true
+
+            # 4. Kontrolle im Log: Was liegt im Artefakt-Ordner?
+            echo "=== Inhalt von build_output ==="
+            ls -laR build_output/
+
+      - name: Alle Build-Dateien als Artefakt hochladen
         uses: actions/upload-artifact@v4
         with:
-          name: armv7-binary
-          # Pfad zum Ordner oder der Datei auf dem Runner-Host
+          name: armv7-build-files
           path: build_output/
-          # Bricht den Workflow ab, falls die Datei nicht existiert (verhindert stummes Fehlschlagen)
           if-no-files-found: error
           retention-days: 7
