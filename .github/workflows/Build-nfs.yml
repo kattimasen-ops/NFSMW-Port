@@ -1,4 +1,4 @@
-name: Build ARMv7
+name: Build ARMv7 NFSMW Port
 
 on:
   push:
@@ -24,10 +24,21 @@ jobs:
           distro: ubuntu20.04
           githubToken: ${{ github.token }}
           install: |
-            apt-get update
-            apt-get install -y build-essential cmake pkg-config libsdl2-dev git
+            apt-get update && apt-get install -y \
+              build-essential \
+              cmake \
+              pkg-config \
+              git \
+              libsdl2-dev \
+              libsdl2-image-dev \
+              libsdl2-mixer-dev \
+              libsdl2-ttf-dev \
+              libgles2-mesa-dev \
+              libopenal-dev \
+              libvorbis-dev \
+              libalut-dev
           run: |
             mkdir -p build
             cd build
-            cmake ..
-            make -j$(nproc)
+            cmake -DENABLE_GLES2=ON ..
+            make -j2
