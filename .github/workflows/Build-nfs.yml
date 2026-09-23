@@ -24,7 +24,6 @@ jobs:
           distro: ubuntu20.04
           githubToken: ${{ github.token }}
           install: |
-            # 1. SSL-Zertifikate und Basis-Tools zuerst installieren
             apt-get update && apt-get install -y \
               ca-certificates \
               curl \
@@ -38,10 +37,7 @@ jobs:
               libsdl2-dev \
               libgles2-mesa-dev
 
-            # 2. Kitware GPG-Schlüssel zuverlässig importieren
             curl -fsSL https://apt.kitware.com/keys/kitware-archive-latest.asc | gpg --dearmor -o /usr/share/keyrings/kitware-archive-keyring.gpg
-
-            # 3. Repository eintragen und CMake aktualisieren
             echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ focal main" > /etc/apt/sources.list.d/kitware.list
             apt-get update && apt-get install -y cmake
           run: |
@@ -49,3 +45,22 @@ jobs:
             cd build
             cmake ..
             make -j2
+
+            # 1. Ziel-Ordnerstruktur für ArkOS / NextOS erstellen
+            mkdir -p ../dist/ports/nfsmw
+
+            # 2. Kompiliertes Binary in den Unterordner kopieren
+            cp nfs_mw_loader ../dist/ports/nfsmw/
+            chmod +x ../dist/ports/nfsmw/nfs_mw_loader
+
+            # Optional: Falls vorhanden, weitere Dateien wie z.B. Startskripte mitkopieren
+            if [ -f "../NFS Most Wanted.sh" ]; then
+              cp "../NFS Most Wanted.sh" ../dist/ports/
+            fi
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NFSMW-Port-ARMv7
+          path: dist/
+          retention-days: 7
