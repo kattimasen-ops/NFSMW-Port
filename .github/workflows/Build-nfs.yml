@@ -26,6 +26,8 @@ jobs:
           install: |
             apt-get update && apt-get install -y \
               build-essential \
+              gcc \
+              g++ \
               cmake \
               pkg-config \
               git \
@@ -34,6 +36,7 @@ jobs:
               libsdl2-mixer-dev \
               libsdl2-ttf-dev \
               libgles2-mesa-dev \
+              libgl1-mesa-dev \
               libopenal-dev \
               libvorbis-dev \
               libalut-dev
