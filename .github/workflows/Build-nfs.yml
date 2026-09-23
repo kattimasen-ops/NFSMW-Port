@@ -1,4 +1,4 @@
-name: Build NFSMW Port (ARMv7)
+name: Build ARMv7
 
 on:
   push:
@@ -11,79 +11,23 @@ jobs:
   build-armv7:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
-      packages: write
-
     steps:
-      - name: Checkout Repository (inkl. Submodulen)
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
 
-      - name: Run Build inside ARMv7 Architecture
+      - name: Build on ARMv7
         uses: uraimo/run-on-arch-action@v2
         with:
           arch: armv7
           distro: ubuntu20.04
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
-
-          # Erforderliche Build-Werkzeuge installieren
+          githubToken: ${{ github.token }}
           install: |
             apt-get update
-            apt-get install -y build-essential cmake git ninja-build pkg-config
-
-          # Build ausführen und Ergebnisse zusammenführen
+            apt-get install -y build-essential cmake pkg-config libsdl2-dev git
           run: |
-            set -e  # Bricht bei jedem Fehler sofort ab
-
-            echo "=== 1. Kompilierung starten ==="
-
-            # Erkennt automatisch, welches Build-System Ihr Projekt nutzt:
-            if [ -f "./build.sh" ]; then
-              echo "Build-Skript (build.sh) gefunden. Führe aus..."
-              chmod +x ./build.sh
-              ./build.sh
-            elif [ -f "./CMakeLists.txt" ]; then
-              echo "CMakeLists.txt gefunden. Starte CMake-Build..."
-              mkdir -p build
-              cd build
-              cmake .. -DCMAKE_BUILD_TYPE=Release
-              make -j$(nproc)
-              cd ..
-            elif [ -f "./Makefile" ]; then
-              echo "Makefile gefunden. Starte Make-Build..."
-              make -j$(nproc)
-            else
-              echo "Kein Standard-Buildsystem automatisch erkannt. Bitte eigenen Build-Befehl hier eintragen."
-            fi
-
-            echo "=== 2. Erzeugte Dateien sammeln ==="
-            mkdir -p build_output
-
-            # Kopiert Build-Ergebnisse aus dem build/-Ordner, falls vorhanden
-            if [ -d "build" ]; then
-              cp -r build/* build_output/ 2>/dev/null || true
-            fi
-
-            # Kopiert kompilierte Binaries/Dateien aus dem Wurzelverzeichnis
-            find . -maxdepth 2 -type f \( -name "*.elf" -o -name "*.so" -o -name "*.bin" -o -name "*.vpk" -o -name "*.apk" -o -executable \) \
-              ! -path "./build_output/*" ! -path "./.git/*" -exec cp {} build_output/ \; 2>/dev/null || true
-
-            echo "=== 3. Inhalt von build_output ==="
-            ls -laR build_output/
-
-            # Bricht mit Fehler ab, falls nach dem Kompilieren kein Ergebnis existiert
-            if [ -z "$(ls -A build_output)" ]; then
-              echo "FEHLER: Es wurden keine kompilierten Dateien in build_output gefunden!"
-              exit 1
-            fi
-
-      - name: Build-Artefakt hochladen
-        uses: actions/upload-artifact@v4
-        with:
-          name: nfsmw-port-armv7
-          path: build_output/
-          if-no-files-found: error
-          retention-days: 7
+            mkdir -p build
+            cd build
+            cmake ..
+            make -j$(nproc)
