@@ -4,10 +4,13 @@ project(nfs_mw_loader C CXX)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# WICHTIG: Erlaubt libNFSMW.so, in main.cpp definierte C-Funktionen (Stubs) aufzulösen
+set(CMAKE_ENABLE_EXPORTS ON)
+
 # 1. Pthreads sauber über das offizielle CMake-Modul einbinden
 find_package(Threads REQUIRED)
 
-# 2. PkgConfig für SDL2 und OpenGL ES 2.0 nutzen (Standard auf Debian/Ubuntu armhf)
+# 2. PkgConfig für SDL2 und OpenGL ES 2.0 nutzen
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED sdl2)
 pkg_check_modules(GLES2 REQUIRED glesv2)
@@ -22,11 +25,15 @@ include_directories(
 # Executable definieren
 add_executable(nfs_mw_loader src/main.cpp)
 
-# Verlinkung: ${CMAKE_DL_LIBS} bindet libdl automatisch platformunabhängig ein
+# Symbole explizit in die dynamische Symboltabelle exportieren (--export-dynamic)
+set_target_properties(nfs_mw_loader PROPERTIES ENABLE_EXPORTS TRUE)
+
+# Verlinkung
 target_link_libraries(nfs_mw_loader
     PRIVATE
     ${SDL2_LIBRARIES}
     ${GLES2_LIBRARIES}
     ${CMAKE_DL_LIBS}
     Threads::Threads
+    m
 )
