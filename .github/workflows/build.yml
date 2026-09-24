@@ -30,15 +30,19 @@ jobs:
             make clean
             make
 
-            # ArkOS-Ordnerstruktur aufbauen
-            mkdir -p release/ports/nfs_mw
+            # ArkOS-Ordnerstruktur korrekt aufbauen
+            mkdir -p release/ports/nfs_mw/libs
+            mkdir -p release/ports/nfs_mw/gamedata
             
-            # Binary & Zubehör in den Port-Ordner kopieren
+            # Binary & Zubehör in den Hauptordner kopieren
             cp nfs_loader release/ports/nfs_mw/
             [ -f loader.c ] && cp loader.c release/ports/nfs_mw/
             [ -f Makefile ] && cp Makefile release/ports/nfs_mw/
             [ -f nfs_mw.gptk ] && cp nfs_mw.gptk release/ports/nfs_mw/
-            [ -f libNFSMW.so ] && cp libNFSMW.so release/ports/nfs_mw/
+
+            # Alle vorhandenen .so Dateien in den libs-Ordner verschieben
+            cp *.so release/ports/nfs_mw/libs/ 2>/dev/null || true
+            if [ -d libs ]; then cp -r libs/* release/ports/nfs_mw/libs/ 2>/dev/null || true; fi
 
             # Alle .sh Skripte aus dem Hauptverzeichnis nach release/ports/ kopieren
             cp *.sh release/ports/ 2>/dev/null || echo "Keine .sh Datei im Root gefunden!"
