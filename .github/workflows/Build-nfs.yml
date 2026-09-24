@@ -50,11 +50,11 @@ jobs:
             # 1. Ziel-Struktur fuer das Artifact erzeugen
             mkdir -p dist/nfs_mw
 
-            # 2. Executable in den nfs_mw Ordner kopieren
+            # 2. Loader-Binary kopieren
             cp build/nfs_mw_loader dist/nfs_mw/
             chmod +x dist/nfs_mw/nfs_mw_loader
 
-            # 3. Echte 32-Bit ARM Stub-Bibliotheken kompilieren (Keine Symlinks)
+            # 3. Nur gefahrlose Android Bionic Stubs kompilieren (Niemals libc.so/libm.so überschreiben!)
             cat << 'EOF' > stub_log.c
             #include <stdio.h>
             void __android_log_print(int prio, const char *tag, const char *fmt, ...) {}
@@ -81,14 +81,7 @@ jobs:
 
             rm -f stub_log.c stub_jni.c stub_android.c
 
-            # 4. Echte 32-Bit ELF Bridges fuer System- und Grafik-Bibliotheken
-            gcc -shared -fPIC -O2 -Wl,-soname,libc.so -o dist/nfs_mw/libc.so -lc
-            gcc -shared -fPIC -O2 -Wl,-soname,libm.so -o dist/nfs_mw/libm.so -lm
-            gcc -shared -fPIC -O2 -Wl,-soname,libdl.so -o dist/nfs_mw/libdl.so -ldl
-            gcc -shared -fPIC -O2 -Wl,-soname,libGLESv2.so -o dist/nfs_mw/libGLESv2.so -lGLESv2
-            gcc -shared -fPIC -O2 -Wl,-soname,libEGL.so -o dist/nfs_mw/libEGL.so -lEGL
-
-            # 5. NFS Most Wanted.sh fuer /roms/ports/ erzeugen
+            # 4. NFS Most Wanted.sh fuer /roms/ports/ erzeugen
             cat << 'EOF' > "dist/NFS Most Wanted.sh"
             #!/bin/bash
             # PortMaster Launch Script fuer NFS Most Wanted (ArkOS / ArkOS4Clone)
@@ -104,7 +97,7 @@ jobs:
             echo "=== Launching NFS Most Wanted ==="
             echo "Arbeitsverzeichnis: $(pwd)"
 
-            # Bibliotheks-Suchpfad: Lokaler Ordner besitzt hoechste Prioritaet
+            # System-Bibliotheken von ArkOS miteinbinden, lokale Stubs bevorzugen
             export LD_LIBRARY_PATH="$GAMEDIR:$GAMEDIR/libs:/usr/lib/arm-linux-gnueabihf:/lib/arm-linux-gnueabihf:$LD_LIBRARY_PATH"
 
             chmod +x ./nfs_mw_loader 2>/dev/null || true
@@ -132,10 +125,10 @@ jobs:
             export SDL_VIDEODRIVER=kmsdrm
             export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
 
-            # CPU Governor auf Maximum
+            # CPU Governor auf Performance
             echo "performance" | $ESUDO tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor > /dev/null 2>&1 || true
 
-            # GPTK Steuerung & Loader starten
+            # GPTK & Game-Start
             $GPTOKEYB "nfs_mw_loader" -c "$GAMEDIR/nfs_mw.gptk" &
 
             if [ -n "$TASKSET" ]; then
@@ -144,7 +137,7 @@ jobs:
                 ./nfs_mw_loader
             fi
 
-            # Cleanup nach Beenden
+            # Cleanup
             $ESUDO kill -9 $(pidof gptokeyb) 2>/dev/null || true
             echo "ondemand" | $ESUDO tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor > /dev/null 2>&1 || true
 
