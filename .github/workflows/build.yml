@@ -33,17 +33,15 @@ jobs:
             # ArkOS-Ordnerstruktur aufbauen
             mkdir -p release/ports/nfs_mw
             
-            # Dateien in die Port-Struktur kopieren
+            # Binary & Zubehör in den Port-Ordner kopieren
             cp nfs_loader release/ports/nfs_mw/
-            cp loader.c release/ports/nfs_mw/
-            cp Makefile release/ports/nfs_mw/
-            cp nfs_mw.gptk release/ports/nfs_mw/
-            
-            if [ -f libNFSMW.so ]; then
-              cp libNFSMW.so release/ports/nfs_mw/
-            fi
+            [ -f loader.c ] && cp loader.c release/ports/nfs_mw/
+            [ -f Makefile ] && cp Makefile release/ports/nfs_mw/
+            [ -f nfs_mw.gptk ] && cp nfs_mw.gptk release/ports/nfs_mw/
+            [ -f libNFSMW.so ] && cp libNFSMW.so release/ports/nfs_mw/
 
-            cp "Need for Speed Most Wanted.sh" release/ports/
+            # Alle .sh Skripte aus dem Hauptverzeichnis nach release/ports/ kopieren
+            cp *.sh release/ports/ 2>/dev/null || echo "Keine .sh Datei im Root gefunden!"
 
             # ZIP-Archiv erstellen
             cd release
