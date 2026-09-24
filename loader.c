@@ -10,12 +10,29 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <assert.h>
+#include <errno.h>
+#include <signal.h>
 #include <SDL2/SDL.h>
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
 
 // ============================================================================
-// JNI MOCK UMGEBUNG (VERHINDERT CRASH BEI JNI_OnLoad)
+// BIONIC / ANDROID SYSTEM SHIMS & STACKS
+// ============================================================================
+
+uintptr_t __stack_chk_guard = 0xd00a5300;
+
+void __stack_chk_fail(void) {
+    printf("[NFS Loader] KRITISCH: Stack Corruption Detected!\n");
+    exit(1);
+}
+
+int *__errno_android(void) {
+    return &errno;
+}
+
+// ============================================================================
+// JNI MOCK UMGEBUNG
 // ============================================================================
 
 typedef int32_t jint;
@@ -124,7 +141,7 @@ static const struct JNIInvokeInterface_struct *g_java_vm_ptr = &g_java_vm_vtbl;
 static JavaVM g_java_vm = &g_java_vm_ptr;
 
 // ============================================================================
-// EXPORTIERTE STUBS FÜR C++, LOGGING UND JNI CONTROLLER
+// LOGGING & C++ RTTI SPEICHER-PUFFER (VERHINDERT NULL-POINTER CRASHES)
 // ============================================================================
 
 int __android_log_print(int prio, const char *tag, const char *fmt, ...) {
@@ -144,45 +161,39 @@ int __android_log_write(int prio, const char *tag, const char *text) {
     return 0;
 }
 
-void Java_com_ea_ironmonkey_MogaController_nativeOnKeyEvent(void *env, void *obj, int keycode, int action) {
-    (void)env; (void)obj; (void)keycode; (void)action;
-}
+// Gültiger Speicher für C++ RTTI Vtables und Exceptions (keine NULL Stubs!)
+uintptr_t _ZTVN10__cxxabiv117__class_type_infoE[32] = {0};
+uintptr_t _ZTVN10__cxxabiv119__pointer_type_infoE[32] = {0};
+uintptr_t _ZTVN10__cxxabiv120__function_type_infoE[32] = {0};
+uintptr_t _ZTVN10__cxxabiv120__si_class_type_infoE[32] = {0};
 
-void Java_com_ea_ironmonkey_MogaController_nativeOnMotionEvent(void *env, void *obj, int axis, float val) {
-    (void)env; (void)obj; (void)axis; (void)val;
-}
-
-void Java_com_ea_ironmonkey_MogaController_nativeOnStateEvent(void *env, void *obj, int state, int val) {
-    (void)env; (void)obj; (void)state; (void)val;
-}
-
-int custom_cxa_atexit(void (*func)(void *), void *arg, void *dso_handle) {
-    (void)func; (void)arg; (void)dso_handle;
-    return 0;
-}
-
-uintptr_t _ZTVN10__cxxabiv117__class_type_infoE[16] = {0};
-uintptr_t _ZTVN10__cxxabiv119__pointer_type_infoE[16] = {0};
-uintptr_t _ZTVN10__cxxabiv120__function_type_infoE[16] = {0};
-uintptr_t _ZTVN10__cxxabiv120__si_class_type_infoE[16] = {0};
-
-uintptr_t _ZNSt6__ndk14cerrE[16] = {0};
-uintptr_t _ZNSt6__ndk15ctypeIcE2idE[16] = {0};
-uintptr_t _ZTISt9exception[16] = {0};
+uintptr_t _ZNSt6__ndk14cerrE[32] = {0};
+uintptr_t _ZNSt6__ndk15ctypeIcE2idE[32] = {0};
+uintptr_t _ZTISt9exception[32] = {0};
 
 void _ZNSt9exceptionD2Ev(void *this_ptr) {
     (void)this_ptr;
 }
 
+// Controller Stubs
+void Java_com_ea_ironmonkey_MogaController_nativeOnKeyEvent(void *env, void *obj, int keycode, int action) {
+    (void)env; (void)obj; (void)keycode; (void)action;
+}
+void Java_com_ea_ironmonkey_MogaController_nativeOnMotionEvent(void *env, void *obj, int axis, float val) {
+    (void)env; (void)obj; (void)axis; (void)val;
+}
+void Java_com_ea_ironmonkey_MogaController_nativeOnStateEvent(void *env, void *obj, int state, int val) {
+    (void)env; (void)obj; (void)state; (void)val;
+}
+
 // ============================================================================
-// HELPER ZUM GELATENEN VON BIBLIOTHEKEN AUS DEM LIBS-ORDNER
+// HELPER ZUM GELADENEN VON BIBLIOTHEKEN
 // ============================================================================
 
 void *try_load_so(const char *libname) {
     char path[512];
     void *handle = NULL;
 
-    // 1. Suche in libs/
     snprintf(path, sizeof(path), "libs/%s", libname);
     handle = dlopen(path, RTLD_NOW | RTLD_GLOBAL);
     if (handle) {
@@ -190,7 +201,6 @@ void *try_load_so(const char *libname) {
         return handle;
     }
 
-    // 2. Suche im Hauptverzeichnis
     snprintf(path, sizeof(path), "./%s", libname);
     handle = dlopen(path, RTLD_NOW | RTLD_GLOBAL);
     if (handle) {
@@ -198,14 +208,13 @@ void *try_load_so(const char *libname) {
         return handle;
     }
 
-    // 3. Suche in System-Pfaden
     handle = dlopen(libname, RTLD_NOW | RTLD_GLOBAL);
     if (handle) {
         printf("[NFS Loader] Erfolgreich geladen: %s\n", libname);
         return handle;
     }
 
-    printf("[NFS Loader] Hinweis: '%s' nicht gefunden/geladen (%s)\n", libname, dlerror());
+    printf("[NFS Loader] Hinweis: '%s' nicht geladen (%s)\n", libname, dlerror());
     return NULL;
 }
 
@@ -242,11 +251,8 @@ int main(int argc, char **argv) {
     }
 
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
-    if (!gl_context) {
-        printf("[NFS Loader] SDL_GL Context Hinweis: %s\n", SDL_GetError());
-    }
 
-    // 1. Pre-loading aller C++ und Support-Bibliotheken (RTLD_GLOBAL stellt Symbole bereit)
+    // 1. Pre-Loading der Hilfsbibliotheken mit globalem Symbol-Export
     try_load_so("libc++_shared.so");
     try_load_so("libgnustl_shared.so");
     try_load_so("liblog.so");
@@ -256,11 +262,11 @@ int main(int argc, char **argv) {
     try_load_so("libfmodevent.so");
     try_load_so("libNimble.so");
 
-    // 2. Laden der Hauptbibliothek
+    // 2. Hauptbibliothek laden
     void *so_handle = try_load_so("libNFSMW.so");
     if (!so_handle) {
         printf("[NFS Loader] KRITISCHER FEHLER: libNFSMW.so konnte nicht geladen werden!\n");
-        printf("[NFS Loader] Stelle sicher, dass libNFSMW.so im Ordner 'libs/' liegt.\n");
+        printf("[NFS Loader] Detail: %s\n", dlerror());
         if (gl_context) SDL_GL_DeleteContext(gl_context);
         SDL_DestroyWindow(window);
         SDL_Quit();
@@ -269,12 +275,14 @@ int main(int argc, char **argv) {
 
     printf("[NFS Loader] libNFSMW.so erfolgreich geladen.\n");
 
-    // 3. Ausführung von JNI_OnLoad mit g_java_vm (stürzt nicht mehr ab)
+    // 3. JNI_OnLoad sicher mit Mock-VM aufrufen
     jint (*JNI_OnLoad)(void *vm, void *reserved) = (jint (*)(void *, void *))dlsym(so_handle, "JNI_OnLoad");
     if (JNI_OnLoad) {
         printf("[NFS Loader] Führe JNI_OnLoad aus...\n");
         jint res = JNI_OnLoad(g_java_vm, NULL);
         printf("[NFS Loader] JNI_OnLoad Ergebnis: %d\n", res);
+    } else {
+        printf("[NFS Loader] Hinweis: Kein JNI_OnLoad Symbol gefunden.\n");
     }
 
     // Haupt-Eventloop
