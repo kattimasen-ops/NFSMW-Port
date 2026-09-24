@@ -47,41 +47,14 @@ jobs:
             make -j2
             cd ..
 
-            # 1. Ziel-Struktur fuer das Artifact erzeugen
+            # 1. Ordnerstruktur fuer das Artifact erzeugen
             mkdir -p dist/nfs_mw
 
-            # 2. Loader-Binary kopieren
+            # 2. Kompilierten Loader kopieren
             cp build/nfs_mw_loader dist/nfs_mw/
             chmod +x dist/nfs_mw/nfs_mw_loader
 
-            # 3. Nur gefahrlose Android Bionic Stubs kompilieren (Niemals libc.so/libm.so überschreiben!)
-            cat << 'EOF' > stub_log.c
-            #include <stdio.h>
-            void __android_log_print(int prio, const char *tag, const char *fmt, ...) {}
-            void __android_log_write(int prio, const char *tag, const char *msg) {}
-            void __android_log_assert(const char *cond, const char *tag, const char *fmt, ...) {}
-            void __android_log_buf_print() {}
-            void __android_log_vprint() {}
-            EOF
-            gcc -shared -fPIC -O2 -Wl,-soname,liblog.so -o dist/nfs_mw/liblog.so stub_log.c
-
-            cat << 'EOF' > stub_jni.c
-            void AndroidBitmap_getInfo() {}
-            void AndroidBitmap_lockPixels() {}
-            void AndroidBitmap_unlockPixels() {}
-            EOF
-            gcc -shared -fPIC -O2 -Wl,-soname,libjnigraphics.so -o dist/nfs_mw/libjnigraphics.so stub_jni.c
-
-            cat << 'EOF' > stub_android.c
-            void AAssetManager_open() {}
-            void AAsset_read() {}
-            void AAsset_close() {}
-            EOF
-            gcc -shared -fPIC -O2 -Wl,-soname,libandroid.so -o dist/nfs_mw/libandroid.so stub_android.c
-
-            rm -f stub_log.c stub_jni.c stub_android.c
-
-            # 4. NFS Most Wanted.sh fuer /roms/ports/ erzeugen
+            # 3. Startskript "NFS Most Wanted.sh" erzeugen
             cat << 'EOF' > "dist/NFS Most Wanted.sh"
             #!/bin/bash
             # PortMaster Launch Script fuer NFS Most Wanted (ArkOS / ArkOS4Clone)
@@ -97,12 +70,11 @@ jobs:
             echo "=== Launching NFS Most Wanted ==="
             echo "Arbeitsverzeichnis: $(pwd)"
 
-            # System-Bibliotheken von ArkOS miteinbinden, lokale Stubs bevorzugen
             export LD_LIBRARY_PATH="$GAMEDIR:$GAMEDIR/libs:/usr/lib/arm-linux-gnueabihf:/lib/arm-linux-gnueabihf:$LD_LIBRARY_PATH"
 
             chmod +x ./nfs_mw_loader 2>/dev/null || true
 
-            # PortMaster Environment laden
+            # PortMaster Environment
             XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
             if [ -d "/opt/system/Tools/PortMaster/" ]; then
                 controlfolder="/opt/system/Tools/PortMaster"
@@ -125,10 +97,8 @@ jobs:
             export SDL_VIDEODRIVER=kmsdrm
             export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
 
-            # CPU Governor auf Performance
             echo "performance" | $ESUDO tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor > /dev/null 2>&1 || true
 
-            # GPTK & Game-Start
             $GPTOKEYB "nfs_mw_loader" -c "$GAMEDIR/nfs_mw.gptk" &
 
             if [ -n "$TASKSET" ]; then
@@ -137,7 +107,6 @@ jobs:
                 ./nfs_mw_loader
             fi
 
-            # Cleanup
             $ESUDO kill -9 $(pidof gptokeyb) 2>/dev/null || true
             echo "ondemand" | $ESUDO tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor > /dev/null 2>&1 || true
 
