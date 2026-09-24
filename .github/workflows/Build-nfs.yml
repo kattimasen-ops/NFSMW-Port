@@ -45,18 +45,113 @@ jobs:
             cd build
             cmake ..
             make -j2
+            cd ..
 
-            # 1. Ziel-Ordnerstruktur für ArkOS / NextOS erstellen
-            mkdir -p ../dist/ports/nfsmw
+            # 1. Ziel-Struktur fuer die Zip-Erstellung erzeugen
+            # (Entpacken im Handheld legt nfs_mw/ in /roms/ports/ ab)
+            mkdir -p dist/nfs_mw
 
-            # 2. Kompiliertes Binary in den Unterordner kopieren
-            cp nfs_mw_loader ../dist/ports/nfsmw/
-            chmod +x ../dist/ports/nfsmw/nfs_mw_loader
+            # 2. Executable in den nfs_mw Ordner kopieren
+            cp build/nfs_mw_loader dist/nfs_mw/
+            chmod +x dist/nfs_mw/nfs_mw_loader
 
-            # Optional: Falls vorhanden, weitere Dateien wie z.B. Startskripte mitkopieren
-            if [ -f "../NFS Most Wanted.sh" ]; then
-              cp "../NFS Most Wanted.sh" ../dist/ports/
-            fi
+            # 3. Echte 32-Bit ARM Stub-Bibliotheken kompilieren (Keine Symlinks)
+            cat << 'EOF' > stub_log.c
+            #include <stdio.h>
+            void __android_log_print(int prio, const char *tag, const char *fmt, ...) {}
+            void __android_log_write(int prio, const char *tag, const char *msg) {}
+            void __android_log_assert(const char *cond, const char *tag, const char *fmt, ...) {}
+            void __android_log_buf_print() {}
+            void __android_log_vprint() {}
+            EOF
+            gcc -shared -fPIC -O2 -Wl,-soname,liblog.so -o dist/nfs_mw/liblog.so stub_log.c
+
+            cat << 'EOF' > stub_jni.c
+            void AndroidBitmap_getInfo() {}
+            void AndroidBitmap_lockPixels() {}
+            void AndroidBitmap_unlockPixels() {}
+            EOF
+            gcc -shared -fPIC -O2 -Wl,-soname,libjnigraphics.so -o dist/nfs_mw/libjnigraphics.so stub_jni.c
+
+            cat << 'EOF' > stub_android.c
+            void AAssetManager_open() {}
+            void AAsset_read() {}
+            void AAsset_close() {}
+            EOF
+            gcc -shared -fPIC -O2 -Wl,-soname,libandroid.so -o dist/nfs_mw/libandroid.so stub_android.c
+
+            rm -f stub_log.c stub_jni.c stub_android.c
+
+            # 4. Echte 32-Bit ELF Bridges fuer System- und Grafik-Bibliotheken
+            gcc -shared -fPIC -O2 -Wl,-soname,libc.so -o dist/nfs_mw/libc.so -lc
+            gcc -shared -fPIC -O2 -Wl,-soname,libm.so -o dist/nfs_mw/libm.so -lm
+            gcc -shared -fPIC -O2 -Wl,-soname,libdl.so -o dist/nfs_mw/libdl.so -ldl
+            gcc -shared -fPIC -O2 -Wl,-soname,libGLESv2.so -o dist/nfs_mw/libGLESv2.so -lGLESv2
+            gcc -shared -fPIC -O2 -Wl,-soname,libEGL.so -o dist/nfs_mw/libEGL.so -lEGL
+
+            # 5. NFS Most Wanted.sh fuer /roms/ports/ erzeugen
+            cat << 'EOF' > "dist/NFS Most Wanted.sh"
+#!/bin/bash
+# PortMaster Launch Script fuer NFS Most Wanted (ArkOS / ArkOS4Clone)
+
+GAMEDIR="/roms/ports/nfs_mw"
+[ -d "/roms2/ports/nfs_mw" ] && GAMEDIR="/roms2/ports/nfs_mw"
+
+cd "$GAMEDIR" || exit 1
+
+LOG_FILE="${GAMEDIR}/nfsmw.log"
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+echo "=== Launching NFS Most Wanted ==="
+echo "Arbeitsverzeichnis: $(pwd)"
+
+# Bibliotheks-Suchpfad: Lokaler Ordner besitzt hoechste Prioritaet
+export LD_LIBRARY_PATH="$GAMEDIR:$GAMEDIR/libs:/usr/lib/arm-linux-gnueabihf:/lib/arm-linux-gnueabihf:$LD_LIBRARY_PATH"
+
+chmod +x ./nfs_mw_loader 2>/dev/null || true
+
+# PortMaster Environment laden
+XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
+if [ -d "/opt/system/Tools/PortMaster/" ]; then
+    controlfolder="/opt/system/Tools/PortMaster"
+elif [ -d "/opt/tools/PortMaster/" ]; then
+    controlfolder="/opt/tools/PortMaster"
+else
+    controlfolder="/roms/ports/PortMaster"
+fi
+
+if [ -f "${controlfolder}/control.txt" ]; then
+    source "${controlfolder}/control.txt"
+    [ -f "${controlfolder}/mod_${CFW_NAME}.txt" ] && source "${controlfolder}/mod_${CFW_NAME}.txt"
+    get_controls
+fi
+
+[ -f "${controlfolder}/tasksetter" ] && source "${controlfolder}/tasksetter"
+
+export HOME="${GAMEDIR}"
+export SDL_AUDIODRIVER=alsa
+export SDL_VIDEODRIVER=kmsdrm
+export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
+
+# CPU Governor auf Maximum
+echo "performance" | $ESUDO tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor > /dev/null 2>&1 || true
+
+# GPTK Steuerung & Loader starten
+$GPTOKEYB "nfs_mw_loader" -c "$GAMEDIR/nfs_mw.gptk" &
+
+if [ -n "$TASKSET" ]; then
+    $TASKSET ./nfs_mw_loader
+else
+    ./nfs_mw_loader
+fi
+
+# Cleanup nach Beenden
+$ESUDO kill -9 $(pidof gptokeyb) 2>/dev/null || true
+echo "ondemand" | $ESUDO tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor > /dev/null 2>&1 || true
+
+exit 0
+EOF
+            chmod +x "dist/NFS Most Wanted.sh"
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
