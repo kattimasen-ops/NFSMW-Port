@@ -1,0 +1,57 @@
+name: Build ArkOS Port Artifact
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-arm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Kompilierung in ARMv7-Emulation
+        uses: uraimo/run-on-arch-action@v2
+        with:
+          arch: armv7
+          distro: ubuntu20.04
+          githubToken: ${{ github.token }}
+          run: |
+            # Systempakete & Header-Dateien installieren
+            apt-get update
+            apt-get install -y build-essential libsdl2-dev libegl1-mesa-dev libgles2-mesa-dev zip
+
+            # Loader kompilieren
+            make clean
+            make
+
+            # ArkOS-Ordnerstruktur aufbauen
+            mkdir -p release/ports/nfs_mw
+            
+            # Dateien in die Port-Struktur kopieren
+            cp nfs_loader release/ports/nfs_mw/
+            cp loader.c release/ports/nfs_mw/
+            cp Makefile release/ports/nfs_mw/
+            cp nfs_mw.gptk release/ports/nfs_mw/
+            
+            if [ -f libNFSMW.so ]; then
+              cp libNFSMW.so release/ports/nfs_mw/
+            fi
+
+            cp "Need for Speed Most Wanted.sh" release/ports/
+
+            # ZIP-Archiv erstellen
+            cd release
+            zip -r ../NFS_Most_Wanted_ArkOS.zip ports/
+
+      - name: Artifact hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: NFS_Most_Wanted_ArkOS
+          path: NFS_Most_Wanted_ArkOS.zip
+          retention-days: 30
