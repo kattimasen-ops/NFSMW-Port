@@ -13,6 +13,9 @@
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
 
+// JNI Typ-Definition für Standalone-Builds ohne Android NDK
+typedef int32_t jint;
+
 // ============================================================================
 // STUBS & REIMPLEMENTATIONEN FÜR FEHLENDE LOG-SYMBOLE
 // ============================================================================
@@ -102,20 +105,17 @@ static SymbolMap g_symbol_map[] = {
 };
 
 void *resolve_symbol(const char *name) {
-    // 1. In manueller Symbol-Map suchen
     for (int i = 0; g_symbol_map[i].name != NULL; i++) {
         if (strcmp(g_symbol_map[i].name, name) == 0) {
             return g_symbol_map[i].address;
         }
     }
 
-    // 2. Im System (libc / libm / libdl) suchen
     void *sys_sym = dlsym(RTLD_DEFAULT, name);
     if (sys_sym) {
         return sys_sym;
     }
 
-    // 3. Fallback Dummy Stub
     printf("[ELF Loader] HINWEIS: Unbekanntes Symbol '%s' -> Nutze dynamischen Dummy Stub\n", name);
     return (void*)&custom_cxa_atexit;
 }
@@ -157,8 +157,8 @@ int main(int argc, char **argv) {
 
     printf("[NFS Loader] libNFSMW.so erfolgreich geladen.\n");
 
-    // Startpunkt des Spiels aufrufen (JNI_OnLoad oder Main Native Entry Point)
-    jint (*JNI_OnLoad)(void *vm, void *reserved) = dlsym(so_handle, "JNI_OnLoad");
+    // Startpunkt des Spiels aufrufen
+    jint (*JNI_OnLoad)(void *vm, void *reserved) = (jint (*)(void *, void *))dlsym(so_handle, "JNI_OnLoad");
     if (JNI_OnLoad) {
         printf("[NFS Loader] Führe JNI_OnLoad aus...\n");
         JNI_OnLoad(NULL, NULL);
