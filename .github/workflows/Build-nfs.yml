@@ -47,17 +47,15 @@ jobs:
             make -j2
             cd ..
 
-            # 1. Ordnerstruktur fuer das Artifact erzeugen
             mkdir -p dist/nfs_mw
 
-            # 2. Kompilierten Loader kopieren
+            # Loader kopieren
             cp build/nfs_mw_loader dist/nfs_mw/
             chmod +x dist/nfs_mw/nfs_mw_loader
 
-            # 3. Startskript "NFS Most Wanted.sh" erzeugen
+            # Starter-Skript "NFS Most Wanted.sh"
             cat << 'EOF' > "dist/NFS Most Wanted.sh"
             #!/bin/bash
-            # PortMaster Launch Script fuer NFS Most Wanted (ArkOS / ArkOS4Clone)
 
             GAMEDIR="/roms/ports/nfs_mw"
             [ -d "/roms2/ports/nfs_mw" ] && GAMEDIR="/roms2/ports/nfs_mw"
@@ -70,11 +68,10 @@ jobs:
             echo "=== Launching NFS Most Wanted ==="
             echo "Arbeitsverzeichnis: $(pwd)"
 
-            export LD_LIBRARY_PATH="$GAMEDIR:$GAMEDIR/libs:/usr/lib/arm-linux-gnueabihf:/lib/arm-linux-gnueabihf:$LD_LIBRARY_PATH"
+            export LD_LIBRARY_PATH="$GAMEDIR:/usr/lib/arm-linux-gnueabihf:/lib/arm-linux-gnueabihf:$LD_LIBRARY_PATH"
 
             chmod +x ./nfs_mw_loader 2>/dev/null || true
 
-            # PortMaster Environment
             XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
             if [ -d "/opt/system/Tools/PortMaster/" ]; then
                 controlfolder="/opt/system/Tools/PortMaster"
