@@ -1,10 +1,7 @@
-name: Build ArkOS Port Artifact
+name: Build NFS Most Wanted Port (Droidports Loader)
 
 on:
   push:
-    branches: [ "main", "master" ]
-    tags: [ "v*" ]
-  pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
 
@@ -15,41 +12,68 @@ jobs:
       - name: Code auschecken
         uses: actions/checkout@v4
 
-      - name: Kompilierung in ARMv7-Emulation
+      - name: Kompilierung in ARMv7-Emulation mit droidports
         uses: uraimo/run-on-arch-action@v2
         with:
           arch: armv7
           distro: ubuntu20.04
           githubToken: ${{ github.token }}
           run: |
+            # Systempakete und Build-Abhängigkeiten installieren
             apt-get update
-            apt-get install -y build-essential libsdl2-dev \
-              libegl1-mesa-dev libgles2-mesa-dev zip binutils
+            apt-get install -y build-essential zip wget unzip \
+              cmake git libzip-dev libsdl2-dev libegl1-mesa-dev libgles2-mesa-dev \
+              libdrm-dev libgbm-dev
 
-            make clean
-            make
+            # droidports-Repository klonen
+            git clone --depth 1 https://github.com/JohnnyonFlame/droidports.git /tmp/droidports
+            cd /tmp/droidports
 
+            # Toolchain-Datei für ARMv7 (armhf) erstellen
+            cat > /tmp/toolchain-armhf.cmake << 'EOF'
+            set(CMAKE_SYSTEM_NAME Linux)
+            set(CMAKE_SYSTEM_PROCESSOR arm)
+            set(CMAKE_C_COMPILER arm-linux-gnueabihf-gcc)
+            set(CMAKE_CXX_COMPILER arm-linux-gnueabihf-g++)
+            set(CMAKE_FIND_ROOT_PATH /usr/arm-linux-gnueabihf)
+            set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+            set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+            set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+            EOF
+
+            # droidports-Loader für ARMv7 kompilieren
+            mkdir -p build-gmloader
+            cd build-gmloader
+            cmake .. -DCMAKE_TOOLCHAIN_FILE=/tmp/toolchain-armhf.cmake \
+                     -DCMAKE_BUILD_TYPE=Release \
+                     -DPLATFORM=linux \
+                     -DPORT=gmloader \
+                     -DARMHF=ON
+            make -j$(nproc)
+
+            # Zurück zum Projektverzeichnis
+            cd "$GITHUB_WORKSPACE"
+
+            # --- Artefakt-Struktur aufbauen ---
             mkdir -p release/ports/nfs_mw/libs
             mkdir -p release/ports/nfs_mw/gamedata
+
+            # Den kompilierten droidports-Loader kopieren
+            cp /tmp/droidports/build-gmloader/gmloader release/ports/nfs_mw/nfs_loader
+
+            # Alle Spieldateien (.so) aus dem libs-Ordner kopieren
+            if [ -d libs ]; then cp -r libs/* release/ports/nfs_mw/libs/ 2>/dev/null || true; fi
+            cp *.so release/ports/nfs_mw/libs/ 2>/dev/null || true
+
+            # Startskript und Konfigurationsdateien kopieren
+            cp *.sh release/ports/ 2>/dev/null || true
+            [ -f nfs_mw.gptk ] && cp nfs_mw.gptk release/ports/nfs_mw/
+
+            # Leere Ordner mit einer .gitkeep-Datei versehen
             touch release/ports/nfs_mw/libs/.gitkeep
             touch release/ports/nfs_mw/gamedata/.gitkeep
 
-            echo "Hier alle .so Dateien hineinkopieren (libNFSMW.so, libc++_shared.so etc.)" \
-              > release/ports/nfs_mw/libs/HIER_LIBS_REINKOPIEREN.txt
-            echo "Hier die entpackten OBB-Ordner hineinkopieren (images, published, sound, TRACKS)" \
-              > release/ports/nfs_mw/gamedata/HIER_GAMEDATA_REINKOPIEREN.txt
-
-            if [ -d libs ]; then cp -r libs/* release/ports/nfs_mw/libs/ 2>/dev/null || true; fi
-            if [ -d gamedata ]; then cp -r gamedata/* release/ports/nfs_mw/gamedata/ 2>/dev/null || true; fi
-            cp *.so release/ports/nfs_mw/libs/ 2>/dev/null || true
-
-            cp nfs_loader release/ports/nfs_mw/
-            [ -f loader.c ] && cp loader.c release/ports/nfs_mw/
-            [ -f Makefile ] && cp Makefile release/ports/nfs_mw/
-            [ -f nfs_mw.gptk ] && cp nfs_mw.gptk release/ports/nfs_mw/
-
-            cp *.sh release/ports/ 2>/dev/null || echo "Keine .sh Datei im Root!"
-
+            # ZIP-Archiv erstellen
             cd release
             zip -r9 ../NFS_Most_Wanted_ArkOS.zip ports/
 
