@@ -47,8 +47,7 @@ jobs:
             make -j2
             cd ..
 
-            # 1. Ziel-Struktur fuer die Zip-Erstellung erzeugen
-            # (Entpacken im Handheld legt nfs_mw/ in /roms/ports/ ab)
+            # 1. Ziel-Struktur fuer das Artifact erzeugen
             mkdir -p dist/nfs_mw
 
             # 2. Executable in den nfs_mw Ordner kopieren
@@ -91,66 +90,66 @@ jobs:
 
             # 5. NFS Most Wanted.sh fuer /roms/ports/ erzeugen
             cat << 'EOF' > "dist/NFS Most Wanted.sh"
-#!/bin/bash
-# PortMaster Launch Script fuer NFS Most Wanted (ArkOS / ArkOS4Clone)
+            #!/bin/bash
+            # PortMaster Launch Script fuer NFS Most Wanted (ArkOS / ArkOS4Clone)
 
-GAMEDIR="/roms/ports/nfs_mw"
-[ -d "/roms2/ports/nfs_mw" ] && GAMEDIR="/roms2/ports/nfs_mw"
+            GAMEDIR="/roms/ports/nfs_mw"
+            [ -d "/roms2/ports/nfs_mw" ] && GAMEDIR="/roms2/ports/nfs_mw"
 
-cd "$GAMEDIR" || exit 1
+            cd "$GAMEDIR" || exit 1
 
-LOG_FILE="${GAMEDIR}/nfsmw.log"
-exec > >(tee -a "$LOG_FILE") 2>&1
+            LOG_FILE="${GAMEDIR}/nfsmw.log"
+            exec > >(tee -a "$LOG_FILE") 2>&1
 
-echo "=== Launching NFS Most Wanted ==="
-echo "Arbeitsverzeichnis: $(pwd)"
+            echo "=== Launching NFS Most Wanted ==="
+            echo "Arbeitsverzeichnis: $(pwd)"
 
-# Bibliotheks-Suchpfad: Lokaler Ordner besitzt hoechste Prioritaet
-export LD_LIBRARY_PATH="$GAMEDIR:$GAMEDIR/libs:/usr/lib/arm-linux-gnueabihf:/lib/arm-linux-gnueabihf:$LD_LIBRARY_PATH"
+            # Bibliotheks-Suchpfad: Lokaler Ordner besitzt hoechste Prioritaet
+            export LD_LIBRARY_PATH="$GAMEDIR:$GAMEDIR/libs:/usr/lib/arm-linux-gnueabihf:/lib/arm-linux-gnueabihf:$LD_LIBRARY_PATH"
 
-chmod +x ./nfs_mw_loader 2>/dev/null || true
+            chmod +x ./nfs_mw_loader 2>/dev/null || true
 
-# PortMaster Environment laden
-XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
-if [ -d "/opt/system/Tools/PortMaster/" ]; then
-    controlfolder="/opt/system/Tools/PortMaster"
-elif [ -d "/opt/tools/PortMaster/" ]; then
-    controlfolder="/opt/tools/PortMaster"
-else
-    controlfolder="/roms/ports/PortMaster"
-fi
+            # PortMaster Environment laden
+            XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
+            if [ -d "/opt/system/Tools/PortMaster/" ]; then
+                controlfolder="/opt/system/Tools/PortMaster"
+            elif [ -d "/opt/tools/PortMaster/" ]; then
+                controlfolder="/opt/tools/PortMaster"
+            else
+                controlfolder="/roms/ports/PortMaster"
+            fi
 
-if [ -f "${controlfolder}/control.txt" ]; then
-    source "${controlfolder}/control.txt"
-    [ -f "${controlfolder}/mod_${CFW_NAME}.txt" ] && source "${controlfolder}/mod_${CFW_NAME}.txt"
-    get_controls
-fi
+            if [ -f "${controlfolder}/control.txt" ]; then
+                source "${controlfolder}/control.txt"
+                [ -f "${controlfolder}/mod_${CFW_NAME}.txt" ] && source "${controlfolder}/mod_${CFW_NAME}.txt"
+                get_controls
+            fi
 
-[ -f "${controlfolder}/tasksetter" ] && source "${controlfolder}/tasksetter"
+            [ -f "${controlfolder}/tasksetter" ] && source "${controlfolder}/tasksetter"
 
-export HOME="${GAMEDIR}"
-export SDL_AUDIODRIVER=alsa
-export SDL_VIDEODRIVER=kmsdrm
-export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
+            export HOME="${GAMEDIR}"
+            export SDL_AUDIODRIVER=alsa
+            export SDL_VIDEODRIVER=kmsdrm
+            export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
 
-# CPU Governor auf Maximum
-echo "performance" | $ESUDO tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor > /dev/null 2>&1 || true
+            # CPU Governor auf Maximum
+            echo "performance" | $ESUDO tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor > /dev/null 2>&1 || true
 
-# GPTK Steuerung & Loader starten
-$GPTOKEYB "nfs_mw_loader" -c "$GAMEDIR/nfs_mw.gptk" &
+            # GPTK Steuerung & Loader starten
+            $GPTOKEYB "nfs_mw_loader" -c "$GAMEDIR/nfs_mw.gptk" &
 
-if [ -n "$TASKSET" ]; then
-    $TASKSET ./nfs_mw_loader
-else
-    ./nfs_mw_loader
-fi
+            if [ -n "$TASKSET" ]; then
+                $TASKSET ./nfs_mw_loader
+            else
+                ./nfs_mw_loader
+            fi
 
-# Cleanup nach Beenden
-$ESUDO kill -9 $(pidof gptokeyb) 2>/dev/null || true
-echo "ondemand" | $ESUDO tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor > /dev/null 2>&1 || true
+            # Cleanup nach Beenden
+            $ESUDO kill -9 $(pidof gptokeyb) 2>/dev/null || true
+            echo "ondemand" | $ESUDO tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor > /dev/null 2>&1 || true
 
-exit 0
-EOF
+            exit 0
+            EOF
             chmod +x "dist/NFS Most Wanted.sh"
 
       - name: Upload Build Artifact
