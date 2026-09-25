@@ -1,0 +1,55 @@
+name: Build fstat shim for ARM32 (RK3326 / ArkOS4clones)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    # Bewusst ubuntu-20.04: gleiche glibc-Basis wie ArkOS4clones,
+    # damit der Shim kompatibel zum Geraet ist.
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install ARM32 cross-compiler toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc-arm-linux-gnueabihf \
+            binutils-arm-linux-gnueabihf \
+            file
+
+      - name: Verify toolchain
+        run: |
+          arm-linux-gnueabihf-gcc --version
+          arm-linux-gnueabihf-readelf --version
+
+      - name: Compile fstat shim
+        run: |
+          mkdir -p build
+          arm-linux-gnueabihf-gcc \
+            -shared \
+            -fPIC \
+            -O2 \
+            -march=armv7-a \
+            -mfpu=neon-vfpv4 \
+            -mfloat-abi=hard \
+            -Wl,-soname,libfstat_shim.so \
+            -Wl,--version-script=src/fstat_shim.map \
+            -o build/libfstat_shim.so \
+            src/fstat_shim.c
+          file build/libfstat_shim.so
+          arm-linux-gnueabihf-readelf -h build/libfstat_shim.so
+          echo "--- exported symbols ---"
+          arm-linux-gnueabihf-nm -D build/libfstat_shim.so | grep -E ' fstat| lstat| stat' || true
+
+      - name: Upload shim as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libfstat_shim-arm32
+          path: build/libfstat_shim.so
+          if-no-files-found: error
