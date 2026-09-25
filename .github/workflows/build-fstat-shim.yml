@@ -1,4 +1,4 @@
-name: Build fstat shim for ARM32 (RK3326 / ArkOS4clones)
+name: Build fstat shim for ARM32 (RK3326 / ArkOS4clones, glibc 2.31)
 
 on:
   push:
@@ -7,28 +7,37 @@ on:
 
 jobs:
   build:
-    # Bewusst ubuntu-20.04: gleiche glibc-Basis wie ArkOS4clones,
-    # damit der Shim kompatibel zum Geraet ist.
-    runs-on: ubuntu-20.04
+    # Host-Runner: nur zum Starten des Containers noetig.
+    runs-on: ubuntu-22.04
+
+    # Der Job laeuft IM Container mit glibc 2.31.
+    container:
+      image: ubuntu:20.04
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install ARM32 cross-compiler toolchain
+      - name: Install ARM32 cross-compiler toolchain (glibc 2.31)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends \
             gcc-arm-linux-gnueabihf \
             binutils-arm-linux-gnueabihf \
-            file
+            file \
+            ca-certificates
+          rm -rf /var/lib/apt/lists/*
 
-      - name: Verify toolchain
+      - name: Verify toolchain and glibc version
         run: |
           arm-linux-gnueabihf-gcc --version
-          arm-linux-gnueabihf-readelf --version
+          echo "--- Host glibc version (soll 2.31 sein) ---"
+          ldd --version | head -1
+          echo "--- ARM32 libc version ---"
+          arm-linux-gnueabihf-gcc -print-file-name=libc.so.6
 
-      - name: Compile fstat shim
+      - name: Compile fstat shim against glibc 2.31
         run: |
           mkdir -p build
           arm-linux-gnueabihf-gcc \
@@ -42,14 +51,18 @@ jobs:
             -Wl,--version-script=src/fstat_shim.map \
             -o build/libfstat_shim.so \
             src/fstat_shim.c
+          echo "--- Dateityp ---"
           file build/libfstat_shim.so
-          arm-linux-gnueabihf-readelf -h build/libfstat_shim.so
-          echo "--- exported symbols ---"
-          arm-linux-gnueabihf-nm -D build/libfstat_shim.so | grep -E ' fstat| lstat| stat' || true
+          echo "--- Dynamische Abhaengigkeiten ---"
+          arm-linux-gnueabihf-readelf -d build/libfstat_shim.so | grep NEEDED || true
+          echo "--- Exportierte Symbole ---"
+          arm-linux-gnueabihf-nm -D build/libfstat_shim.so | grep -E ' fstat| fstat64' || true
+          echo "--- Glibc-Symbolversionen (muss GLIBC_2.0 / GLIBC_2.1 sein) ---"
+          arm-linux-gnueabihf-readelf --dyn-syms build/libfstat_shim.so | grep -E 'fstat|__fxstat' || true
 
       - name: Upload shim as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: libfstat_shim-arm32
+          name: libfstat_shim-arm32-glibc231
           path: build/libfstat_shim.so
           if-no-files-found: error
