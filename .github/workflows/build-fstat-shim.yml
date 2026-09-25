@@ -7,10 +7,9 @@ on:
 
 jobs:
   build:
-    # Host-Runner: nur zum Starten des Containers noetig.
     runs-on: ubuntu-22.04
 
-    # Der Job laeuft IM Container mit glibc 2.31.
+    # Der Job laeuft IM Container mit glibc 2.31 – identisch zu ArkOS4clones.
     container:
       image: ubuntu:20.04
 
@@ -25,17 +24,20 @@ jobs:
           apt-get install -y --no-install-recommends \
             gcc-arm-linux-gnueabihf \
             binutils-arm-linux-gnueabihf \
+            libc6-dev-armhf-cross \
+            linux-libc-dev-armhf-cross \
             file \
             ca-certificates
           rm -rf /var/lib/apt/lists/*
 
-      - name: Verify toolchain and glibc version
+      - name: Verify toolchain and headers
         run: |
           arm-linux-gnueabihf-gcc --version
           echo "--- Host glibc version (soll 2.31 sein) ---"
           ldd --version | head -1
-          echo "--- ARM32 libc version ---"
-          arm-linux-gnueabihf-gcc -print-file-name=libc.so.6
+          echo "--- ARM32 Header vorhanden? ---"
+          ls -l /usr/arm-linux-gnueabihf/include/sys/stat.h
+          ls -l /usr/arm-linux-gnueabihf/include/sys/types.h
 
       - name: Compile fstat shim against glibc 2.31
         run: |
