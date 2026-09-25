@@ -1,0 +1,9 @@
+{
+  global:
+    fstat;
+    fstat64;
+    lstat;
+    stat;
+  local:
+    *;
+};
